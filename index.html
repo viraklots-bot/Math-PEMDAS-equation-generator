@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Dominoes</title>
+    <style>
+        body { 
+            font-family: 'Comic Sans MS', cursive, sans-serif; 
+            margin: 0; padding: 10px;
+            height: 100vh; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; overflow: hidden;
+            transition: background 0.5s;
+        } 
+        .spring { background: #e7f9e7; }
+        .summer { background: #fff9c4; }
+        .fall { background: #ffe0b2; }
+        .winter { background: #e3f2fd; }
+
+        .settings-bar {
+            position: absolute; top: 10px; z-index: 20;
+            background: white; padding: 12px 25px; border-radius: 30px;
+            border: 4px solid #ff69b4; display: flex; gap: 15px; align-items: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        input[type="number"] { width: 50px; font-family: inherit; }
+
+        #domino {
+            width: 95vw; height: 40vh; max-width: 1100px;
+            background: white; border: 12px solid #ff69b4; border-radius: 50px;
+            display: flex; position: relative; box-shadow: 0 20px 0px rgba(0,0,0,0.1);
+            margin-top: 50px; z-index: 10;
+        }
+        #domino::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 12px; background: #ff69b4; }
+
+        .side { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; font-weight: bold; }
+        #answer-side { font-size: 8rem; color: #ff8c00; }
+        #problem-side { font-size: 3rem; color: #2e8b57; line-height: 1.2; }
+
+        .controls { display: flex; gap: 15px; z-index: 10; margin-top: 20px; }
+        button { padding: 15px 45px; font-size: 2rem; color: white; border: none; border-radius: 60px; cursor: pointer; font-family: inherit; }
+        #genBtn { background: #ff69b4; box-shadow: 0 8px 0 #d44d91; }
+        #histBtn { background: #2e8b57; box-shadow: 0 8px 0 #1e5c3a; }
+        button:active { transform: translateY(4px); box-shadow: 0 4px 0 rgba(0,0,0,0.1); }
+
+        #historyOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+        #historyWindow { width: 90vw; height: 80vh; background: white; border-radius: 40px; border: 8px solid #ff69b4; padding: 30px; display: flex; flex-direction: column; }
+        #log { flex-grow: 1; overflow-y: auto; margin: 15px 0; border: 2px solid #eee; border-radius: 15px; padding: 10px; }
+        .hist-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 15px; font-size: 1.4rem; }
+        
+        .decor { position: fixed; font-size: 6rem; pointer-events: none; z-index: 1; animation: float 5s infinite ease-in-out; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+    </style>
+
+    <script>
+        const r = (max, min = 1) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        function toggleHist(s) { 
+            const overlay = document.getElementById('historyOverlay');
+            if(overlay) overlay.style.display = s ? 'flex' : 'none'; 
+        }
+
+        function generate() {
+            const min = parseInt(document.getElementById('minA').value);
+            const max = parseInt(document.getElementById('maxA').value);
+            const target = r(max, min);
+            
+            const blueprints = [
+                () => { 
+                    let d = r(3, 2), current = target * d, c = r(4, 2);
+                    if (current % c !== 0) return null;
+                    let ab = current / c, a = r(ab - 1, 1), b = ab - a;
+                    return `(${a} + ${b}) &times; ${c} &divide; ${d}`;
+                },
+                () => { 
+                    let b = r(8, 2), c = r(6, 2), bc = b * c;
+                    let a = r(20, 2), d = (a + bc) - target;
+                    return d > 0 ? `${a} + (${b} &times; ${c}) - ${d}` : null;
+                },
+                () => { 
+                    let b = r(4, 2), a = b * r(10, 2), quot = a / b;
+                    let diff = target - quot;
+                    if (diff < 2) return null;
+                    let d = r(5, 1), c = d + diff;
+                    return `(${a} &divide; ${b}) + (${c} - ${d})`;
+                },
+                () => { 
+                    let a = r(6, 2), b = r(6, 2), c = r(10, 2);
+                    let d = target - (a * b - c);
+                    return d > 0 ? `${a} &times; ${b} - ${c} + ${d}` : null;
+                }
+            ];
+
+            let equation = null;
+            let safety = 0;
+            while (!equation && safety < 50) {
+                equation = blueprints[r(blueprints.length - 1, 0)]();
+                safety++;
+            }
+
+            document.getElementById('answer-side').innerText = target;
+            document.getElementById('problem-side').innerHTML = equation || "Try again!";
+
+            const log = document.getElementById('log');
+            const item = document.createElement('div');
+            item.className = 'hist-item';
+            const clean = `${target} = ${equation.replace(/&times;/g, 'x').replace(/&divide;/g, '/')}`;
+            item.innerHTML = `<span><strong>${target}</strong> ← ${equation}</span>
+                               <button onclick="navigator.clipboard.writeText('${clean}'); alert('Copied!');" style="background:#eee; padding:10px; border-radius:10px; border:none; cursor:pointer;">Copy</button>`;
+            log.prepend(item);
+        }
+
+        function setSeason() {
+            const m = new Date().getMonth();
+            const body = document.getElementById('pBody');
+            const decor = document.getElementById('decorations');
+            let items = "", cls = "", color = "#ff69b4";
+            
+            // SEASON EMOJIS RESTORED 🌸☀️🍂❄️
+            if (m >= 2 && m <= 4) { cls="spring"; items="🌸🦋"; color="#ff69b4"; }
+            else if (m >= 5 && m <= 7) { cls="summer"; items="☀️🍦"; color="#fbc02d"; }
+            else if (m >= 8 && m <= 10) { cls="fall"; items="🍂🍁"; color="#e64a19"; }
+            else { cls="winter"; items="❄️☃️"; color="#0288d1"; }
+            
+            body.className = cls;
+            document.getElementById('domino').style.borderColor = color;
+            document.getElementById('genBtn').style.backgroundColor = color;
+            document.getElementById('genBtn').style.boxShadow = `0 8px 0 ${color}cc`;
+            decor.innerHTML = `<div class="decor" style="top:15%; left:5%">${items}</div><div class="decor" style="bottom:10%; right:5%">${items}</div>`;
+        }
+
+        // Initialize when page is ready
+        window.onload = setSeason;
+    </script>
+</head>
+<body id="pBody">
+    <div class="settings-bar">
+        <span>Min:</span> <input type="number" id="minA" value="1">
+        <span>Max:</span> <input type="number" id="maxA" value="50">
+    </div>
+
+    <div id="decorations"></div>
+
+    <div id="domino">
+        <div class="side" id="answer-side">?</div>
+        <div class="side" id="problem-side">Ready!</div>
+    </div>
+
+    <div class="controls">
+        <button id="genBtn" onclick="generate()">Generate</button>
+        <button id="histBtn" onclick="toggleHist(true)">History 📖</button>
+    </div>
+
+    <div id="historyOverlay">
+        <div id="historyWindow">
+            <h2 style="color:#ff69b4;">Past Equations</h2>
+            <div id="log"></div>
+            <button onclick="toggleHist(false)" style="background:#2e8b57; padding:15px; border-radius:20px; color:white; border:none; cursor:pointer; align-self:center;">Back</button>
+        </div>
+    </div>
+</body>
+</html>
